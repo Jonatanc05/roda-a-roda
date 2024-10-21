@@ -17,7 +17,7 @@ pub fn main() anyerror!void {
 
     var panel = try Panel.init();
 
-    try panel.setSecretWord("sansao");
+    try panel.setSecretWord("rei davi");
 
     while (!rl.windowShouldClose()) { // Detect window close button or ESC key
         // Update
@@ -76,6 +76,7 @@ const Panel = struct {
         const upper_case_word = std.ascii.upperString(&buf, word);
         if (upper_case_word.len > self.cards_line2.len) return error.PalavraMuitoGrande;
         for (0..upper_case_word.len) |i| {
+            if (upper_case_word[i] == ' ') continue;
             self.cards_line2.cards[i].color = Card.color_on;
             self.cards_line2.cards[i].secret_letter = upper_case_word[i];
         }
