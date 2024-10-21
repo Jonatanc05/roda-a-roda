@@ -1,38 +1,44 @@
 const std = @import("std");
 const rl = @import("raylib");
+const card_color_off = rl.Color.init(1, 24, 147, 255);
+const card_color_on = rl.Color.white;
 const allocator = std.heap.page_allocator;
+const screenWidth = 1280;
+const screenHeight = 720;
+const rect_width = 0.0470;
+const rect_height = 0.112;
 
 pub fn main() anyerror!void {
-    // Initialization
-    //--------------------------------------------------------------------------------------
-    const screenWidth = 1800;
-    const screenHeight = 900;
-
     rl.initWindow(screenWidth, screenHeight, "Roda a Roda");
-    defer rl.closeWindow(); // Close window and OpenGL context
+    defer rl.closeWindow();
 
-    rl.setTargetFPS(60); // Set our game to run at 60 frames-per-second
-    //--------------------------------------------------------------------------------------
+    rl.setTargetFPS(60);
 
-    var background_img = rl.Image.init("resources/painel_simples_9letras.png");
+    var background_img = rl.Image.init("resources/painel_simples.png");
     background_img.resize(screenWidth, screenHeight);
     const background = rl.loadTextureFromImage(background_img);
     var last_letter: ?rl.KeyboardKey = null;
 
-    // Main game loop
+    var cards_line1 = try CardLine.init(0.2025, 0.391, 12);
+    defer cards_line1.deinit();
+    var cards_line2 = try CardLine.init(0.153, 0.506, 14);
+    defer cards_line2.deinit();
+    var cards_line3 = try CardLine.init(0.153, 0.623, 14);
+    defer cards_line3.deinit();
+    var cards_line4 = try CardLine.init(0.2025, 0.739, 12);
+    defer cards_line4.deinit();
+
     while (!rl.windowShouldClose()) { // Detect window close button or ESC key
         // Update
         //----------------------------------------------------------------------------------
         last_letter = getLetterPressed() orelse last_letter;
         if (rl.isMouseButtonPressed(.mouse_button_left)) {
-            var msg: [80:0]u8 = undefined;
-
+            const posX = @as(f32, @floatFromInt(rl.getMouseX())) / screenWidth;
+            const posY = @as(f32, @floatFromInt(rl.getMouseY())) / screenHeight;
+            var buf: [80:0]u8 = undefined;
             rl.traceLog(
-                .log_info,
-                try std.fmt.bufPrintZ(&msg, "Coords are {d:.3}, {d:.3}", .{
-                    @as(f32, @floatFromInt(rl.getMouseX())) / screenWidth,
-                    @as(f32, @floatFromInt(rl.getMouseY())) / screenHeight,
-                }),
+                rl.TraceLogLevel.log_info,
+                try std.fmt.bufPrintZ(&buf, "Mouse: {d:.3}, {d:.3}", .{ posX, posY }),
             );
         }
 
@@ -43,13 +49,10 @@ pub fn main() anyerror!void {
 
         rl.drawTexture(background, 0, 0, rl.Color.white);
 
-        rl.drawRectangle(
-            @intFromFloat(0.200 * screenWidth),
-            @intFromFloat(0.388 * screenHeight),
-            @intFromFloat(0.048 * screenWidth),
-            @intFromFloat(0.113 * screenHeight),
-            rl.Color.white,
-        );
+        cards_line1.draw();
+        cards_line2.draw();
+        cards_line3.draw();
+        cards_line4.draw();
 
         if (last_letter) |letter| {
             const letter_u8: u8 = @intCast(@intFromEnum(letter));
@@ -57,6 +60,42 @@ pub fn main() anyerror!void {
         }
     }
 }
+
+const Card = struct {
+    color: rl.Color = card_color_off,
+    x: f32, // normalized: 0 to 1
+    y: f32, // normalized: 0 to 1
+};
+
+const CardLine = struct {
+    cards: std.ArrayList(Card),
+
+    pub fn init(x: f32, y: f32, count: usize) !CardLine {
+        var res = CardLine{ .cards = std.ArrayList(Card).init(allocator) };
+        try res.cards.resize(count);
+        for (0..count) |i| {
+            const fi: f32 = @floatFromInt(i);
+            try res.cards.append(.{ .x = x + fi * 0.04956, .y = y });
+        }
+        return res;
+    }
+
+    pub fn deinit(self: *CardLine) void {
+        self.cards.deinit();
+    }
+
+    pub fn draw(self: CardLine) void {
+        for (self.cards.items) |card| {
+            rl.drawRectangle(
+                @intFromFloat(card.x * screenWidth),
+                @intFromFloat(card.y * screenHeight),
+                @intFromFloat(rect_width * screenWidth),
+                @intFromFloat(rect_height * screenHeight),
+                card.color,
+            );
+        }
+    }
+};
 
 fn getLetterPressed() ?rl.KeyboardKey {
     if (rl.isKeyPressed(.key_a)) return .key_a;
