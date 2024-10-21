@@ -1,12 +1,8 @@
 const std = @import("std");
 const rl = @import("raylib");
-const card_color_off = rl.Color.init(1, 24, 147, 255);
-const card_color_on = rl.Color.white;
 const allocator = std.heap.page_allocator;
 const screenWidth = 1280;
 const screenHeight = 720;
-const rect_width = 0.0470;
-const rect_height = 0.112;
 
 pub fn main() anyerror!void {
     rl.initWindow(screenWidth, screenHeight, "Roda a Roda");
@@ -19,19 +15,19 @@ pub fn main() anyerror!void {
     const background = rl.loadTextureFromImage(background_img);
     var last_letter: ?rl.KeyboardKey = null;
 
-    var cards_line1 = try CardLine.init(0.2025, 0.391, 12);
-    defer cards_line1.deinit();
-    var cards_line2 = try CardLine.init(0.153, 0.506, 14);
-    defer cards_line2.deinit();
-    var cards_line3 = try CardLine.init(0.153, 0.623, 14);
-    defer cards_line3.deinit();
-    var cards_line4 = try CardLine.init(0.2025, 0.739, 12);
-    defer cards_line4.deinit();
+    var panel = try Panel.init();
+
+    try panel.setSecretWord("sansao");
 
     while (!rl.windowShouldClose()) { // Detect window close button or ESC key
         // Update
         //----------------------------------------------------------------------------------
-        last_letter = getLetterPressed() orelse last_letter;
+        const letter_pressed = getLetterPressed();
+        if (letter_pressed != last_letter) {
+            if (letter_pressed) |l| panel.revealLetter(l);
+            last_letter = letter_pressed;
+        }
+
         if (rl.isMouseButtonPressed(.mouse_button_left)) {
             const posX = @as(f32, @floatFromInt(rl.getMouseX())) / screenWidth;
             const posY = @as(f32, @floatFromInt(rl.getMouseY())) / screenHeight;
@@ -49,52 +45,99 @@ pub fn main() anyerror!void {
 
         rl.drawTexture(background, 0, 0, rl.Color.white);
 
-        cards_line1.draw();
-        cards_line2.draw();
-        cards_line3.draw();
-        cards_line4.draw();
-
-        if (last_letter) |letter| {
-            const letter_u8: u8 = @intCast(@intFromEnum(letter));
-            rl.drawText(&[_:0]u8{letter_u8}, @intFromFloat(screenWidth * 0.27), @intFromFloat(screenHeight * 0.54), 40, rl.Color.black);
-        }
+        panel.draw();
     }
 }
 
-const Card = struct {
-    color: rl.Color = card_color_off,
-    x: f32, // normalized: 0 to 1
-    y: f32, // normalized: 0 to 1
-};
+const Panel = struct {
+    cards_line1: CardLine,
+    cards_line2: CardLine,
+    cards_line3: CardLine,
+    cards_line4: CardLine,
 
-const CardLine = struct {
-    cards: std.ArrayList(Card),
-
-    pub fn init(x: f32, y: f32, count: usize) !CardLine {
-        var res = CardLine{ .cards = std.ArrayList(Card).init(allocator) };
-        try res.cards.resize(count);
-        for (0..count) |i| {
-            const fi: f32 = @floatFromInt(i);
-            try res.cards.append(.{ .x = x + fi * 0.04956, .y = y });
-        }
-        return res;
+    pub fn init() !Panel {
+        return .{
+            .cards_line1 = try CardLine.init(0.2025, 0.391, 12),
+            .cards_line2 = try CardLine.init(0.153, 0.506, 14),
+            .cards_line3 = try CardLine.init(0.153, 0.623, 14),
+            .cards_line4 = try CardLine.init(0.2025, 0.739, 12),
+        };
     }
 
-    pub fn deinit(self: *CardLine) void {
-        self.cards.deinit();
+    pub fn draw(self: *Panel) void {
+        self.cards_line1.draw();
+        self.cards_line2.draw();
+        self.cards_line3.draw();
+        self.cards_line4.draw();
     }
 
-    pub fn draw(self: CardLine) void {
-        for (self.cards.items) |card| {
-            rl.drawRectangle(
-                @intFromFloat(card.x * screenWidth),
-                @intFromFloat(card.y * screenHeight),
-                @intFromFloat(rect_width * screenWidth),
-                @intFromFloat(rect_height * screenHeight),
-                card.color,
-            );
+    pub fn setSecretWord(self: *Panel, word: []const u8) !void {
+        var buf: [15]u8 = undefined;
+        const upper_case_word = std.ascii.upperString(&buf, word);
+        if (upper_case_word.len > self.cards_line2.len) return error.PalavraMuitoGrande;
+        for (0..upper_case_word.len) |i| {
+            self.cards_line2.cards[i].color = Card.color_on;
+            self.cards_line2.cards[i].secret_letter = upper_case_word[i];
         }
     }
+
+    pub fn revealLetter(self: *Panel, letter: rl.KeyboardKey) void {
+        for (&self.cards_line2.cards) |*card| {
+            if (card.secret_letter != null and card.secret_letter.? == @intFromEnum(letter)) {
+                card.revealed = true;
+            }
+        }
+    }
+
+    const Card = struct {
+        revealed: bool = false,
+        secret_letter: ?u8 = null,
+        color: rl.Color,
+        x: f32, // normalized: 0 to 1
+        y: f32, // normalized: 0 to 1
+
+        const color_off = rl.Color.init(1, 24, 147, 255);
+        const color_on = rl.Color.white;
+        const width = 0.0470;
+        const height = 0.112;
+    };
+
+    const CardLine = struct {
+        cards: [14]Card,
+        len: usize = 0,
+
+        pub fn init(x: f32, y: f32, count: usize) !CardLine {
+            var res = CardLine{ .cards = [1]Card{.{ .x = 0, .y = 0, .color = rl.Color.red }} ** 14, .len = count };
+            for (0..count) |i| {
+                const fi: f32 = @floatFromInt(i);
+                res.cards[i] = .{ .x = x + fi * 0.04956, .y = y, .color = Card.color_off };
+            }
+            return res;
+        }
+
+        pub fn draw(self: CardLine) void {
+            for (0..self.len) |i| {
+                const card = self.cards[i];
+                rl.drawRectangle(
+                    @intFromFloat(card.x * screenWidth),
+                    @intFromFloat(card.y * screenHeight),
+                    @intFromFloat(Card.width * screenWidth),
+                    @intFromFloat(Card.height * screenHeight),
+                    card.color,
+                );
+                if (card.revealed) {
+                    const letter_u8 = self.cards[i].secret_letter.?;
+                    rl.drawText(
+                        &[_:0]u8{letter_u8},
+                        @intFromFloat(screenWidth * (card.x + Card.width * 0.3)),
+                        @intFromFloat(screenHeight * (card.y + Card.height * 0.3)),
+                        40,
+                        rl.Color.black,
+                    );
+                }
+            }
+        }
+    };
 };
 
 fn getLetterPressed() ?rl.KeyboardKey {
