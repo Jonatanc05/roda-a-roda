@@ -1,8 +1,9 @@
 const std = @import("std");
 const rl = @import("raylib");
 const allocator = std.heap.page_allocator;
-const screenWidth = 1280;
-const screenHeight = 720;
+const screenWidth = 1920;
+const screenHeight = 1120;
+var sound_error: rl.Sound = undefined;
 
 pub fn main() anyerror!void {
     rl.initWindow(screenWidth, screenHeight, "Roda a Roda");
@@ -15,16 +16,32 @@ pub fn main() anyerror!void {
     const background = rl.loadTextureFromImage(background_img);
     var last_letter: ?rl.KeyboardKey = null;
 
-    var panel = try Panel.init();
+    rl.initAudioDevice();
+    defer rl.closeAudioDevice();
+    sound_error = rl.loadSound("resources/error.wav");
 
-    try panel.setSecretWord("rei davi");
+    const file_content = @embedFile("biblical_terms.csv");
+    const line_count = std.mem.count(u8, file_content, "\n");
+    var rand = std.rand.DefaultPrng.init(@intCast(std.time.milliTimestamp()));
+    const lottery = @rem(rand.next(), line_count);
+    var lines = std.mem.splitAny(u8, file_content, "\r\n");
+    for (0..lottery) |_|
+        _ = lines.next();
+    var line = std.mem.splitAny(u8, lines.next().?, ",");
+    const term = line.next().?;
+    const tip = line.next().?;
+    var msg: [80:0]u8 = undefined;
+    rl.traceLog(rl.TraceLogLevel.log_info, try std.fmt.bufPrintZ(&msg, "Dica: {s}", .{tip}));
+
+    var panel = try Panel.init();
+    try panel.setSecretWord(term);
 
     while (!rl.windowShouldClose()) { // Detect window close button or ESC key
         // Update
         //----------------------------------------------------------------------------------
         const letter_pressed = getLetterPressed();
         if (letter_pressed != last_letter) {
-            if (letter_pressed) |l| panel.revealLetter(l);
+            if (letter_pressed) |l| panel.testLetter(l);
             last_letter = letter_pressed;
         }
 
@@ -82,11 +99,16 @@ const Panel = struct {
         }
     }
 
-    pub fn revealLetter(self: *Panel, letter: rl.KeyboardKey) void {
+    pub fn testLetter(self: *Panel, letter: rl.KeyboardKey) void {
+        var found = false;
         for (&self.cards_line2.cards) |*card| {
             if (card.secret_letter != null and card.secret_letter.? == @intFromEnum(letter)) {
                 card.revealed = true;
+                found = true;
             }
+        }
+        if (!found) {
+            rl.playSound(sound_error);
         }
     }
 
