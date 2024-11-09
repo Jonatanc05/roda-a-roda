@@ -4,11 +4,11 @@ const allocator = std.heap.page_allocator;
 const screenWidth = 1920;
 const screenHeight = 1120;
 var sound_error: rl.Sound = undefined;
+var font: rl.Font = undefined;
 
 pub fn main() anyerror!void {
     rl.initWindow(screenWidth, screenHeight, "Show do Cristão");
     defer rl.closeWindow();
-    rl.toggleFullscreen();
 
     rl.setTargetFPS(60);
 
@@ -21,6 +21,9 @@ pub fn main() anyerror!void {
     defer rl.closeAudioDevice();
     sound_error = rl.loadSound("resources/error.wav");
     rl.setSoundVolume(sound_error, 5);
+
+    font = rl.loadFontEx("resources/fradm.ttf", 60, null);
+    defer font.unload();
 
     const term = getRandomTerm();
     var msg: [80:0]u8 = undefined;
@@ -40,11 +43,15 @@ pub fn main() anyerror!void {
         }
 
         if (rl.isKeyPressed(.key_enter)) {
+            panel.resetFailedLetters();
             const myterm = getRandomTerm();
             var mymsg: [80:0]u8 = undefined;
             rl.traceLog(rl.TraceLogLevel.log_info, try std.fmt.bufPrintZ(&mymsg, "Dica: {s}", .{myterm.tip}));
             try panel.setSecretWord(myterm.word);
         }
+
+        if (rl.isKeyPressed(.key_f11))
+            rl.toggleFullscreen();
 
         if (rl.isMouseButtonPressed(.mouse_button_left)) {
             const posX = @as(f32, @floatFromInt(rl.getMouseX())) / screenWidth;
@@ -81,7 +88,7 @@ const Panel = struct {
         [2]f32{ 0.518, 0.086 },
         [2]f32{ 0.553, 0.086 },
         [2]f32{ 0.401, 0.143 },
-        [2]f32{ 0.421, 0.143 },
+        [2]f32{ 0.425, 0.143 },
         [2]f32{ 0.446, 0.143 },
         [2]f32{ 0.470, 0.143 },
         [2]f32{ 0.499, 0.143 },
@@ -118,14 +125,25 @@ const Panel = struct {
 
         for (0..self.last_failed_letter) |i| {
             if (self.failed_letters[i] == 0) @panic("failed_letters[i] == 0");
-            rl.drawText(
+            rl.drawTextEx(
+                font,
                 &[_:0]u8{self.failed_letters[i]},
-                @intFromFloat(failed_letters_postions[i][0] * screenWidth),
-                @intFromFloat(failed_letters_postions[i][1] * screenHeight),
-                30,
+                .{
+                    .x = failed_letters_postions[i][0] * screenWidth,
+                    .y = failed_letters_postions[i][1] * screenHeight,
+                },
+                45,
+                3.0,
                 rl.Color.white,
             );
         }
+    }
+
+    pub fn resetFailedLetters(self: *Panel) void {
+        for (0..self.failed_letters.len) |i| {
+            self.failed_letters[i] = 0;
+        }
+        self.last_failed_letter = 0;
     }
 
     pub fn setSecretWord(self: *Panel, word: []const u8) !void {
@@ -209,11 +227,15 @@ const Panel = struct {
                 );
                 if (card.revealed) {
                     const letter_u8 = self.cards[i].secret_letter.?;
-                    rl.drawText(
+                    rl.drawTextEx(
+                        font,
                         &[_:0]u8{letter_u8},
-                        @intFromFloat(screenWidth * (card.x + Card.width * 0.3)),
-                        @intFromFloat(screenHeight * (card.y + Card.height * 0.3)),
-                        40,
+                        .{
+                            .x = screenWidth * (card.x + Card.width * 0.3),
+                            .y = screenHeight * (card.y + Card.height * 0.3),
+                        },
+                        60,
+                        3.0,
                         rl.Color.black,
                     );
                 }
@@ -252,8 +274,6 @@ fn getLetterPressed() ?rl.KeyboardKey {
     return null;
 }
 
-// TODO passar pra dentro do Panel
-// TODO resetar failed_letters
 fn getRandomTerm() struct { tip: []const u8, word: []const u8 } {
     const file_content = @embedFile("biblical_terms.csv");
     const line_count = std.mem.count(u8, file_content, "\n");
