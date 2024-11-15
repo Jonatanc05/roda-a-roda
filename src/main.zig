@@ -1,8 +1,8 @@
 const std = @import("std");
 const rl = @import("raylib");
 const allocator = std.heap.page_allocator;
-const screenWidth = 1920;
-const screenHeight = 1120;
+const screenWidth = 1280;
+const screenHeight = 720;
 var sound_error: rl.Sound = undefined;
 var font: rl.Font = undefined;
 
@@ -12,26 +12,39 @@ pub fn main() anyerror!void {
 
     rl.setTargetFPS(60);
 
-    var background_img = rl.Image.init("resources/painel_simples.png");
-    background_img.resize(screenWidth, screenHeight);
-    const background = rl.loadTextureFromImage(background_img);
+    const background = background: {
+        var background_img = rl.Image.init("resources/painel_simples.png");
+        background_img.resize(screenWidth, screenHeight);
+        break :background rl.loadTextureFromImage(background_img);
+    };
+    defer background.unload();
+
+    const tip_panel = tip_panel: {
+        var tip_panel_img = rl.Image.init("resources/tip-panel-text.png");
+        tip_panel_img.resize(0.35 * screenWidth, @intFromFloat(0.4 * screenHeight));
+        break :tip_panel rl.loadTextureFromImage(tip_panel_img);
+    };
+    defer tip_panel.unload();
+    var show_tip = false;
+
     var last_letter: ?rl.KeyboardKey = null;
 
     rl.initAudioDevice();
     defer rl.closeAudioDevice();
     sound_error = rl.loadSound("resources/error.wav");
     rl.setSoundVolume(sound_error, 5);
+    defer rl.unloadSound(sound_error);
 
-    font = rl.loadFontEx("resources/fradm.ttf", 60, null);
+    font = rl.loadFontEx("resources/fradm.ttf", 44, null);
     defer font.unload();
 
-    const term = getRandomTerm();
+    var current_term = getRandomTerm();
     var msg: [80:0]u8 = undefined;
-    rl.traceLog(rl.TraceLogLevel.log_info, try std.fmt.bufPrintZ(&msg, "Dica: {s}", .{term.tip}));
+    rl.traceLog(rl.TraceLogLevel.log_info, try std.fmt.bufPrintZ(&msg, "Dica: {s}", .{current_term.tip}));
 
     var panel = try Panel.init();
 
-    try panel.setSecretWord(term.word);
+    try panel.setSecretWord(current_term.word);
 
     while (!rl.windowShouldClose()) { // Detect window close button or ESC key
         // Update
@@ -44,11 +57,14 @@ pub fn main() anyerror!void {
 
         if (rl.isKeyPressed(.key_enter)) {
             panel.resetFailedLetters();
-            const myterm = getRandomTerm();
+            current_term = getRandomTerm();
             var mymsg: [80:0]u8 = undefined;
-            rl.traceLog(rl.TraceLogLevel.log_info, try std.fmt.bufPrintZ(&mymsg, "Dica: {s}", .{myterm.tip}));
-            try panel.setSecretWord(myterm.word);
+            rl.traceLog(rl.TraceLogLevel.log_info, try std.fmt.bufPrintZ(&mymsg, "Dica: {s}", .{current_term.tip}));
+            try panel.setSecretWord(current_term.word);
         }
+
+        if (rl.isKeyPressed(.key_f1))
+            show_tip = !show_tip;
 
         if (rl.isKeyPressed(.key_f11))
             rl.toggleFullscreen();
@@ -71,6 +87,13 @@ pub fn main() anyerror!void {
         rl.drawTexture(background, 0, 0, rl.Color.white);
 
         panel.draw();
+
+        if (show_tip) {
+            rl.drawTexture(tip_panel, 0, -30, rl.Color.white);
+            const text = try std.mem.concatWithSentinel(allocator, u8, &[_][]const u8{current_term.tip}, 0);
+            rl.drawText("DICA", 65, 60, 25, rl.Color.white);
+            rl.drawText(text, 65, 90, 17, rl.Color.white);
+        }
     }
 }
 
@@ -132,7 +155,7 @@ const Panel = struct {
                     .x = failed_letters_postions[i][0] * screenWidth,
                     .y = failed_letters_postions[i][1] * screenHeight,
                 },
-                45,
+                33,
                 3.0,
                 rl.Color.white,
             );
@@ -234,7 +257,7 @@ const Panel = struct {
                             .x = screenWidth * (card.x + Card.width * 0.3),
                             .y = screenHeight * (card.y + Card.height * 0.3),
                         },
-                        60,
+                        44,
                         3.0,
                         rl.Color.black,
                     );
