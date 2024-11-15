@@ -1,8 +1,9 @@
 const std = @import("std");
 const rl = @import("raylib");
 const allocator = std.heap.page_allocator;
-const screenWidth = 1280;
+const screenWidth = 800;
 const screenHeight = 720;
+const main_font_size: i32 = @intFromFloat(screenWidth * 0.04);
 var sound_error: rl.Sound = undefined;
 var font: rl.Font = undefined;
 
@@ -21,7 +22,7 @@ pub fn main() anyerror!void {
 
     const tip_panel = tip_panel: {
         var tip_panel_img = rl.Image.init("resources/tip-panel-text.png");
-        tip_panel_img.resize(0.35 * screenWidth, @intFromFloat(0.4 * screenHeight));
+        tip_panel_img.resize(@intFromFloat(0.35 * screenWidth), @intFromFloat(0.4 * screenHeight));
         break :tip_panel rl.loadTextureFromImage(tip_panel_img);
     };
     defer tip_panel.unload();
@@ -35,7 +36,7 @@ pub fn main() anyerror!void {
     rl.setSoundVolume(sound_error, 5);
     defer rl.unloadSound(sound_error);
 
-    font = rl.loadFontEx("resources/fradm.ttf", 44, null);
+    font = rl.loadFontEx("resources/fradm.ttf", main_font_size, null);
     defer font.unload();
 
     var current_term = getRandomTerm();
@@ -91,8 +92,20 @@ pub fn main() anyerror!void {
         if (show_tip) {
             rl.drawTexture(tip_panel, 0, -30, rl.Color.white);
             const text = try std.mem.concatWithSentinel(allocator, u8, &[_][]const u8{current_term.tip}, 0);
-            rl.drawText("DICA", 65, 60, 25, rl.Color.white);
-            rl.drawText(text, 65, 90, 17, rl.Color.white);
+            rl.drawText(
+                "DICA",
+                0.05 * screenWidth,
+                0.1 * screenHeight,
+                @intFromFloat(0.5 * @as(f32, main_font_size)),
+                rl.Color.white,
+            );
+            rl.drawText(
+                text,
+                0.05 * screenWidth,
+                0.15 * screenHeight,
+                @intFromFloat(0.3 * @as(f32, main_font_size)),
+                rl.Color.white,
+            );
         }
     }
 }
@@ -155,7 +168,7 @@ const Panel = struct {
                     .x = failed_letters_postions[i][0] * screenWidth,
                     .y = failed_letters_postions[i][1] * screenHeight,
                 },
-                33,
+                0.55 * @as(f32, @floatFromInt(main_font_size)),
                 3.0,
                 rl.Color.white,
             );
@@ -257,7 +270,7 @@ const Panel = struct {
                             .x = screenWidth * (card.x + Card.width * 0.3),
                             .y = screenHeight * (card.y + Card.height * 0.3),
                         },
-                        44,
+                        main_font_size,
                         3.0,
                         rl.Color.black,
                     );
