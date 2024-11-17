@@ -1,8 +1,8 @@
 const std = @import("std");
 const rl = @import("raylib");
 const allocator = std.heap.page_allocator;
-const screenWidth = 800;
-const screenHeight = 720;
+const screenWidth = 1280;
+const screenHeight = 800;
 const main_font_size: i32 = @intFromFloat(screenWidth * 0.04);
 var sound_error: rl.Sound = undefined;
 var font: rl.Font = undefined;
@@ -42,6 +42,7 @@ pub fn main() anyerror!void {
     var current_term = getRandomTerm();
     var msg: [80:0]u8 = undefined;
     rl.traceLog(rl.TraceLogLevel.log_info, try std.fmt.bufPrintZ(&msg, "Dica: {s}", .{current_term.tip}));
+    rl.traceLog(rl.TraceLogLevel.log_info, try std.fmt.bufPrintZ(&msg, "Resposta: {s}", .{current_term.word}));
 
     var panel = try Panel.init();
 
@@ -61,6 +62,7 @@ pub fn main() anyerror!void {
             current_term = getRandomTerm();
             var mymsg: [80:0]u8 = undefined;
             rl.traceLog(rl.TraceLogLevel.log_info, try std.fmt.bufPrintZ(&mymsg, "Dica: {s}", .{current_term.tip}));
+            rl.traceLog(rl.TraceLogLevel.log_info, try std.fmt.bufPrintZ(&mymsg, "Resposta: {s}", .{current_term.word}));
             try panel.setSecretWord(current_term.word);
         }
 
@@ -78,6 +80,10 @@ pub fn main() anyerror!void {
                 rl.TraceLogLevel.log_info,
                 try std.fmt.bufPrintZ(&buf, "Mouse: {d:.3}, {d:.3}", .{ posX, posY }),
             );
+        }
+
+        if (rl.isKeyPressed(.key_backspace)) {
+            rl.playSound(sound_error);
         }
 
         // Draw
@@ -103,7 +109,7 @@ pub fn main() anyerror!void {
                 text,
                 0.05 * screenWidth,
                 0.15 * screenHeight,
-                @intFromFloat(0.3 * @as(f32, main_font_size)),
+                @intFromFloat(0.45 * @as(f32, main_font_size)),
                 rl.Color.white,
             );
         }
