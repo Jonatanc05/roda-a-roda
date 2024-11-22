@@ -6,12 +6,27 @@ const screenHeight = 800;
 const main_font_size: i32 = @intFromFloat(screenWidth * 0.04);
 var sound_error: rl.Sound = undefined;
 var font: rl.Font = undefined;
+var file_content: []u8 = undefined;
 
 pub fn main() anyerror!void {
     rl.initWindow(screenWidth, screenHeight, "Show do Cristão");
     defer rl.closeWindow();
 
     rl.setTargetFPS(60);
+
+    const terms_filename = "termos.csv";
+    const cwd = std.fs.cwd();
+    const terms_file = cwd.openFile(terms_filename, .{ .mode = .read_only }) catch |err| {
+        std.log.err("Verifique se o arquivo {s} existe na mesma pasta que roda-a-roda.exe", .{terms_filename});
+        std.log.err("Erro: {s}", .{@errorName(err)});
+        return err;
+    };
+    defer terms_file.close();
+    file_content = terms_file.readToEndAlloc(allocator, std.math.maxInt(usize)) catch |err| {
+        std.log.err("Arquivo {s} esta muito grande", .{terms_filename});
+        return err;
+    };
+    defer allocator.free(file_content);
 
     const background = background: {
         var background_img = rl.Image.init("resources/painel_simples.png");
@@ -317,7 +332,6 @@ fn getLetterPressed() ?rl.KeyboardKey {
 }
 
 fn getRandomTerm() struct { tip: []const u8, word: []const u8 } {
-    const file_content = @embedFile("biblical_terms.csv");
     const line_count = std.mem.count(u8, file_content, "\n");
     var rand = std.rand.DefaultPrng.init(@intCast(std.time.milliTimestamp()));
     const lottery = @rem(rand.next(), line_count);
